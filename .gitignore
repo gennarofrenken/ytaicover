@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.db
+*.sqlite
+*.sqlite3
+
+# macOS
+.DS_Store
+.AppleDouble
+.AppleDB
+.AppleDesktop
+.Trashes
+
+# Docker files
+.dockerignore
+Dockerfile
+docker-compose.yml
+README_DOCKER.md
+
+# Large/archives
+ffmpeg.zip
+
+# Temporary
+.server_pid
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Test outputs
+flipped_samples/

@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader & Stem Isolator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .main-container { max-width: 1400px; margin: 0 auto; }
+        h1 {
+            color: #fff; text-align: center; margin-bottom: 30px;
+            font-size: 28px; text-shadow: 0 4px 20px rgba(255, 8, 68, 0.3);
+        }
+        .tabs {
+            display: flex; gap: 10px; margin-bottom: 20px; justify-content: center;
+        }
+        .tab {
+            padding: 15px 30px; border: 2px solid rgba(255,255,255,0.2);
+            background: transparent; color: #fff; border-radius: 12px;
+            cursor: pointer; font-size: 16px; transition: all 0.3s;
+        }
+        .tab:hover { border-color: rgba(255,255,255,0.4); }
+        .tab.active {
+            background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
+            border-color: transparent;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .container {
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(10px);
+            border-radius: 20px; padding: 40px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+        .input-group { margin-bottom: 20px; }
+        label {
+            display: block; color: rgba(255,255,255,0.7);
+            margin-bottom: 8px; font-size: 14px;
+        }
+        input[type="text"], select {
+            width: 100%; padding: 15px;
+            border: 2px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px; color: #fff; font-size: 16px;
+            transition: all 0.3s;
+        }
+        select { cursor: pointer; }
+        option { background: #1a1a2e; color: #fff; }
+        input:focus, select:focus {
+            outline: none; border-color: #ff0844;
+            background: rgba(255,255,255,0.1);
+        }
+        .radio-group { display: flex; flex-direction: column; gap: 10px; }
+        .radio-option {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 15px; background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 10px;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .radio-option:hover { border-color: rgba(255,255,255,0.4); }
+        .radio-option input[type="radio"] { width: 20px; height: 20px; accent-color: #ff0844; }
+        .options { display: flex; gap: 20px; margin-bottom: 20px; }
+        .checkbox-group {
+            display: flex; align-items: center; gap: 10px;
+            color: rgba(255,255,255,0.8);
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 20px; height: 20px; accent-color: #ff0844;
+        }
+        button {
+            width: 100%; padding: 18px;
+            background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
+            border: none; border-radius: 12px; color: #fff;
+            font-size: 18px; font-weight: 600; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255,8,68,0.3);
+        }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .progress-container {
+            margin-top: 20px; display: none;
+        }
+        .progress-container.show { display: block; }
+        .progress-bar {
+            width: 100%; height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px; overflow: hidden; margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #ff0844, #ffb199);
+            width: 0%; transition: width 0.3s;
+        }
+        .status-text {
+            color: rgba(255,255,255,0.7); text-align: center; font-size: 14px;
+        }
+        .completed {
+            margin-top: 20px; padding: 15px;
+            background: rgba(0,255,136,0.1);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 12px; display: none;
+        }
+        .completed.show { display: block; }
+        .completed h3 { color: #00ff88; margin-bottom: 10px; }
+        .completed p { color: rgba(255,255,255,0.7); }
+        .log-container {
+            margin-top: 20px; max-height: 200px; overflow-y: auto;
+            background: rgba(0,0,0,0.3); border-radius: 12px;
+            padding: 15px; display: none; font-family: monospace;
+        }
+        .log-container.show { display: block; }
+        .log-entry {
+            color: rgba(255,255,255,0.6); font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .log-entry.success { color: #00ff88; }
+        .log-entry.error { color: #ff0844; }
+        .log-entry.stem { color: #a855f7; }
+        .channel-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px; margin-top: 20px;
+        }
+        .channel-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 20px;
+            transition: all 0.3s; cursor: pointer;
+        }
+        .channel-card:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .channel-card.selected {
+            border-color: #ff0844; background: rgba(255,8,68,0.1);
+        }
+        .channel-name {
+            color: #fff; font-weight: 600; margin-bottom: 5px;
+        }
+        .channel-info {
+            color: rgba(255,255,255,0.5); font-size: 13px;
+        }
+        .samples-list {
+            margin-top: 20px; display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 15px;
+        }
+        .sample-item {
+            background: rgba(168,85,247,0.1);
+            border: 1px solid rgba(168,85,247,0.3);
+            border-radius: 12px; padding: 15px;
+        }
+        .sample-title {
+            color: #fff; font-weight: 600; margin-bottom: 10px;
+        }
+        .stems-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        }
+        .stem-file {
+            background: rgba(255,255,255,0.05);
+            padding: 10px 15px; border-radius: 8px;
+            font-size: 13px; display: flex; align-items: center; gap: 10px;
+        }
+        .stem-label {
+            flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .stem-type {
+            padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+        }
+        .stem-drums { background: #fbbf24; color: #000; }
+        .stem-bass { background: #34d399; color: #000; }
+        .stem-other { background: #60a5fa; color: #fff; }
+        .stem-vocals { background: #f472b6; color: #fff; }
+        .stem-checkboxes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .stem-checkbox-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 15px; background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 10px;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .stem-checkbox-item:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); }
+        .stem-checkbox-item.selected { border-color: #ff0844; background: rgba(255,8,68,0.1); }
+        .stem-checkbox-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: #ff0844; }
+        .stem-checkbox-item label { flex: 1; cursor: pointer; color: rgba(255,255,255,0.8); }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <h1>YouTube Downloader & Stem Isolator</h1>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="download">Download</button>
+            <button class="tab" data-tab="isolate">Stem Isolation</button>
+            <button class="tab" data-tab="cover">AI Cover</button>
+        </div>
+
+        <!-- Download Tab -->
+        <div class="tab-content active" id="downloadTab">
+            <div class="container">
+                <div class="input-group">
+                    <label for="url">YouTube URL</label>
+                    <input type="text" id="url" placeholder="https://www.youtube.com/@channelname">
+                </div>
+                <div class="input-group">
+                    <label>Download Mode</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="downloadMode" value="video" checked>
+                            <span>Single Video</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="downloadMode" value="playlist">
+                            <span>Playlist</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="downloadMode" value="channel">
+                            <span>Entire Channel</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="mp3" checked>
+                        <label for="mp3">Convert to MP3</label>
+                    </div>
+                </div>
+                <button id="downloadBtn">Start Download</button>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="status-text" id="statusText">Initializing...</p>
+                </div>
+
+                <div class="completed" id="completed">
+                    <h3>Download Complete!</h3>
+                    <p id="completedText"></p>
+                </div>
+
+                <div class="log-container" id="logContainer"></div>
+            </div>
+        </div>
+
+        <!-- Stem Isolation Tab -->
+        <div class="tab-content" id="isolateTab">
+            <div class="container">
+                <div class="input-group">
+                    <label>Select Channel Folder to Isolate</label>
+                    <select id="channelSelect">
+                        <option value="">-- Select a channel --</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Isolation Mode</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="isolateMode" value="all" checked>
+                            <span>All Beats in Channel</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="isolateMode" value="specific">
+                            <span>Specific Beat</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="input-group" id="beatSelectGroup" style="display: none;">
+                    <label for="beatSelect">Select Beat to Isolate</label>
+                    <select id="beatSelect">
+                        <option value="">-- Select a channel first --</option>
+                    </select>
+                </div>
+
+                <button id="isolateBtn">Isolate Stems (4 Stems: Drums, Bass, Other, Vocals)</button>
+
+                <div class="progress-container" id="isolateProgressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="isolateProgressFill"></div>
+                    </div>
+                    <p class="status-text" id="isolateStatusText">Initializing...</p>
+                </div>
+
+                <div class="completed" id="isolateCompleted">
+                    <h3>Isolation Complete!</h3>
+                    <p id="isolateCompletedText"></p>
+                </div>
+
+                <div class="log-container" id="isolateLogContainer"></div>
+            </div>
+        </div>
+
+        <!-- AI Cover Tab -->
+        <div class="tab-content" id="coverTab">
+            <div class="container">
+                <div class="input-group">
+                    <label for="coverChannelSelect">Select Channel</label>
+                    <select id="coverChannelSelect">
+                        <option value="">-- Select a channel --</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="coverBeatSelect">Select Beat</label>
+                    <select id="coverBeatSelect">
+                        <option value="">-- Select a channel first --</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Select Stems to Use as Audio Prompts</label>
+                    <div class="stem-checkboxes" id="stemCheckboxes">
+                        <div class="stem-checkbox-item" data-stem="Vocals">
+                            <input type="checkbox" id="stemVocals" value="Vocals">
+                            <label for="stemVocals">Vocals</label>
+                        </div>
+                        <div class="stem-checkbox-item" data-stem="Drums">
+                            <input type="checkbox" id="stemDrums" value="Drums">
+                            <label for="stemDrums">Drums</label>
+                        </div>
+                        <div class="stem-checkbox-item" data-stem="Bass">
+                            <input type="checkbox" id="stemBass" value="Bass">
+                            <label for="stemBass">Bass</label>
+                        </div>
+                        <div class="stem-checkbox-item" data-stem="Other">
+                            <input type="checkbox" id="stemOther" value="Other">
+                            <label for="stemOther">Melody (Other)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="genreInput">Genre/Style Prompt (optional)</label>
+                    <input type="text" id="genreInput" placeholder="e.g., trap, lo-fi, jazz, electronic">
+                </div>
+
+                <button id="coverBtn">Generate AI Cover</button>
+
+                <div class="progress-container" id="coverProgressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="coverProgressFill"></div>
+                    </div>
+                    <p class="status-text" id="coverStatusText">Ready to generate cover</p>
+                </div>
+
+                <div class="completed" id="coverCompleted">
+                    <h3>AI Cover Generated!</h3>
+                    <p id="coverCompletedText"></p>
+                </div>
+
+                <div class="log-container" id="coverLogContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tabName + 'Tab').classList.add('active');
+                if (tabName === 'isolate') loadChannels();
+                if (tabName === 'cover') loadCoverChannels();
+            });
+        });
+
+        function addLog(containerId, message, type = '') {
+            const container = document.getElementById(containerId);
+            const entry = document.createElement('div');
+            entry.className = 'log-entry' + (type ? ' ' + type : '');
+            entry.textContent = message;
+            container.appendChild(entry);
+            container.classList.add('show');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Download functionality
+        const downloadBtn = document.getElementById('downloadBtn');
+        const urlInput = document.getElementById('url');
+        const mp3Checkbox = document.getElementById('mp3');
+
+        downloadBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            if (!url) {
+                alert('Please enter a YouTube URL');
+                return;
+            }
+
+            // Get selected download mode
+            const selectedMode = document.querySelector('input[name="downloadMode"]:checked').value;
+            const modeLabels = {
+                'video': 'Single Video',
+                'playlist': 'Playlist',
+                'channel': 'Entire Channel'
+            };
+
+            downloadBtn.disabled = true;
+            document.getElementById('progressContainer').classList.add('show');
+            document.getElementById('completed').classList.remove('show');
+            document.getElementById('logContainer').innerHTML = '';
+            document.getElementById('logContainer').classList.add('show');
+
+            addLog('logContainer', 'Starting download...');
+            addLog('logContainer', `URL: ${url}`);
+            addLog('logContainer', `Mode: ${modeLabels[selectedMode]}`);
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, toMp3: mp3Checkbox.checked, mode: selectedMode })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.progress !== undefined) {
+                                document.getElementById('progressFill').style.width = data.progress + '%';
+                            }
+
+                            if (data.status) {
+                                document.getElementById('statusText').textContent = data.status;
+                                addLog('logContainer', data.status);
+                            }
+
+                            if (data.download) {
+                                addLog('logContainer', 'Downloaded: ' + data.download);
+                            }
+
+                            if (data.error) {
+                                addLog('logContainer', 'Error: ' + data.error, 'error');
+                            }
+
+                            if (data.complete) {
+                                document.getElementById('completed').classList.add('show');
+                                document.getElementById('completedText').textContent = data.message || 'Download complete!';
+                                document.getElementById('progressFill').style.width = '100%';
+                                document.getElementById('statusText').textContent = 'Complete!';
+                                addLog('logContainer', 'Download complete!', 'success');
+                                loadChannels(); // Refresh channel list
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                addLog('logContainer', 'Error: ' + error.message, 'error');
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        });
+
+        // Channel selection for isolation
+        const channelSelect = document.getElementById('channelSelect');
+        let selectedChannel = '';
+
+        async function loadChannels() {
+            try {
+                const response = await fetch('/downloads');
+                const channels = await response.json();
+
+                channelSelect.innerHTML = '<option value="">-- Select a channel --</option>';
+                channels.forEach(ch => {
+                    const option = document.createElement('option');
+                    option.value = ch.name;
+                    option.textContent = `${ch.name} (${ch.count} beats)`;
+                    if (ch.hasIsolated) option.textContent += ' ✓';
+                    channelSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading channels:', error);
+            }
+        }
+
+        channelSelect.addEventListener('change', () => {
+            selectedChannel = channelSelect.value;
+            loadBeats(selectedChannel);
+        });
+
+        // Isolation mode radio buttons
+        document.querySelectorAll('input[name="isolateMode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const mode = document.querySelector('input[name="isolateMode"]:checked').value;
+                const beatGroup = document.getElementById('beatSelectGroup');
+                if (mode === 'all') {
+                    beatGroup.style.display = 'none';
+                } else {
+                    beatGroup.style.display = 'block';
+                }
+            });
+        });
+
+        // Load beats for a channel
+        async function loadBeats(channel) {
+            if (!channel) {
+                document.getElementById('beatSelect').innerHTML = '<option value="">-- Select a channel first --</option>';
+                return;
+            }
+            try {
+                const response = await fetch(`/beats/${channel}`);
+                const beats = await response.json();
+
+                const beatSelect = document.getElementById('beatSelect');
+                beatSelect.innerHTML = '<option value="">-- Select a beat --</option>';
+                beats.forEach(beat => {
+                    const option = document.createElement('option');
+                    option.value = beat.name;
+                    option.textContent = beat.name;
+                    if (beat.hasIsolated) option.textContent += ' ✓';
+                    beatSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading beats:', error);
+            }
+        }
+
+        const beatSelect = document.getElementById('beatSelect');
+        let selectedBeat = '';
+
+        beatSelect.addEventListener('change', () => {
+            selectedBeat = beatSelect.value;
+        });
+
+        // Stem Isolation functionality
+        const isolateBtn = document.getElementById('isolateBtn');
+
+        isolateBtn.addEventListener('click', async () => {
+            if (!selectedChannel) {
+                alert('Please select a channel first');
+                return;
+            }
+
+            const mode = document.querySelector('input[name="isolateMode"]:checked').value;
+            if (mode === 'specific' && !selectedBeat) {
+                alert('Please select a beat to isolate');
+                return;
+            }
+
+            isolateBtn.disabled = true;
+            document.getElementById('isolateProgressContainer').classList.add('show');
+            document.getElementById('isolateCompleted').classList.remove('show');
+            document.getElementById('isolateLogContainer').innerHTML = '';
+            document.getElementById('isolateLogContainer').classList.add('show');
+
+            const modeLabel = mode === 'all' ? 'All beats' : `Beat: ${selectedBeat}`;
+            addLog('isolateLogContainer', `Starting stem isolation for: ${selectedChannel}`);
+            addLog('isolateLogContainer', `Mode: ${modeLabel}`);
+            addLog('isolateLogContainer', 'Model: htdemucs (4 stems: Vocals, Drums, Bass, Other)');
+
+            try {
+                const response = await fetch('/isolate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folder: selectedChannel,
+                        beat: mode === 'specific' ? selectedBeat : null
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.status) {
+                                document.getElementById('isolateStatusText').textContent = data.status;
+                                addLog('isolateLogContainer', data.status);
+                            }
+
+                            if (data.stem) {
+                                addLog('isolateLogContainer', data.stem, 'stem');
+                            }
+
+                            if (data.error) {
+                                addLog('isolateLogContainer', 'Error: ' + data.error, 'error');
+                            }
+
+                            if (data.complete) {
+                                document.getElementById('isolateCompleted').classList.add('show');
+                                document.getElementById('isolateCompletedText').textContent = data.message || 'Stem isolation complete!';
+                                document.getElementById('isolateProgressFill').style.width = '100%';
+                                document.getElementById('isolateStatusText').textContent = 'Complete!';
+                                addLog('isolateLogContainer', 'Stem isolation complete!', 'success');
+                                loadSamples(); // Refresh samples
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                addLog('isolateLogContainer', 'Error: ' + error.message, 'error');
+            } finally {
+                isolateBtn.disabled = false;
+            }
+        });
+
+        // AI Cover functionality
+        const coverChannelSelect = document.getElementById('coverChannelSelect');
+        const coverBeatSelect = document.getElementById('coverBeatSelect');
+        const stemCheckboxes = document.querySelectorAll('.stem-checkbox-item');
+        const genreInput = document.getElementById('genreInput');
+        const coverBtn = document.getElementById('coverBtn');
+        let coverSelectedChannel = '';
+        let coverSelectedBeat = '';
+
+        async function loadCoverChannels() {
+            try {
+                const response = await fetch('/downloads');
+                const channels = await response.json();
+
+                coverChannelSelect.innerHTML = '<option value="">-- Select a channel --</option>';
+                channels.forEach(ch => {
+                    const option = document.createElement('option');
+                    option.value = ch.name;
+                    option.textContent = `${ch.name} (${ch.count} beats)`;
+                    coverChannelSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading channels:', error);
+            }
+        }
+
+        async function loadCoverBeats(channel) {
+            if (!channel) {
+                coverBeatSelect.innerHTML = '<option value="">-- Select a channel first --</option>';
+                return;
+            }
+            try {
+                const response = await fetch(`/beats/${channel}`);
+                const beats = await response.json();
+
+                coverBeatSelect.innerHTML = '<option value="">-- Select a beat --</option>';
+                beats.forEach(beat => {
+                    const option = document.createElement('option');
+                    option.value = beat.name;
+                    option.textContent = beat.name;
+                    if (beat.hasIsolated) option.textContent += ' ✓';
+                    coverBeatSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading beats:', error);
+            }
+        }
+
+        async function loadCoverStems(channel, beat) {
+            if (!channel || !beat) {
+                return;
+            }
+            try {
+                const response = await fetch(`/stems/${channel}/${beat}`);
+                const stems = await response.json();
+
+                // Reset and populate checkboxes
+                stemCheckboxes.forEach(item => {
+                    item.classList.remove('selected');
+                    const checkbox = item.querySelector('input[type="checkbox"]');
+                    checkbox.checked = false;
+                    checkbox.disabled = true;
+
+                    // Check if this stem exists
+                    const stemType = item.dataset.stem;
+                    const stemExists = stems.some(s => s.type === stemType || (stemType === 'Other' && s.type === 'Melody'));
+                    if (stemExists) {
+                        checkbox.disabled = false;
+                        item.title = stems.find(s => (s.type === stemType || (stemType === 'Other' && s.type === 'Melody')))?.name || '';
+                    } else {
+                        item.title = 'Stem not found';
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading stems:', error);
+            }
+        }
+
+        coverChannelSelect.addEventListener('change', () => {
+            coverSelectedChannel = coverChannelSelect.value;
+            loadCoverBeats(coverSelectedChannel);
+        });
+
+        coverBeatSelect.addEventListener('change', () => {
+            coverSelectedBeat = coverBeatSelect.value;
+            loadCoverStems(coverSelectedChannel, coverSelectedBeat);
+        });
+
+        stemCheckboxes.forEach(item => {
+            item.addEventListener('click', (e) => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (!checkbox.disabled) {
+                    checkbox.checked = !checkbox.checked;
+                }
+
+                // Update visual selection state
+                stemCheckboxes.forEach(i => {
+                    if (i.querySelector('input[type="checkbox"]').checked) {
+                        i.classList.add('selected');
+                    } else {
+                        i.classList.remove('selected');
+                    }
+                });
+            });
+        });
+
+        coverBtn.addEventListener('click', async () => {
+            if (!coverSelectedChannel || !coverSelectedBeat) {
+                alert('Please select a channel and beat first');
+                return;
+            }
+
+            const selectedStems = [];
+            stemCheckboxes.forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox.checked) {
+                    const stemType = item.dataset.stem;
+                    selectedStems.push(stemType);
+                }
+            });
+
+            if (selectedStems.length === 0) {
+                alert('Please select at least one stem to use as audio prompt');
+                return;
+            }
+
+            coverBtn.disabled = true;
+            document.getElementById('coverProgressContainer').classList.add('show');
+            document.getElementById('coverCompleted').classList.remove('show');
+            document.getElementById('coverLogContainer').innerHTML = '';
+            document.getElementById('coverLogContainer').classList.add('show');
+
+            addLog('coverLogContainer', 'Starting AI cover generation...');
+            addLog('coverLogContainer', `Channel: ${coverSelectedChannel}`);
+            addLog('coverLogContainer', `Beat: ${coverSelectedBeat}`);
+            addLog('coverLogContainer', `Selected stems: ${selectedStems.join(', ')}`);
+            if (genreInput.value) {
+                addLog('coverLogContainer', `Genre/Style: ${genreInput.value}`);
+            }
+
+            try {
+                const response = await fetch('/cover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channel: coverSelectedChannel,
+                        beat: coverSelectedBeat,
+                        stems: selectedStems,
+                        genre: genreInput.value
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.progress !== undefined) {
+                                document.getElementById('coverProgressFill').style.width = data.progress + '%';
+                            }
+
+                            if (data.status) {
+                                document.getElementById('coverStatusText').textContent = data.status;
+                                addLog('coverLogContainer', data.status);
+                            }
+
+                            if (data.error) {
+                                addLog('coverLogContainer', 'Error: ' + data.error, 'error');
+                            }
+
+                            if (data.complete) {
+                                document.getElementById('coverCompleted').classList.add('show');
+                                document.getElementById('coverCompletedText').textContent = data.message || 'AI Cover generated!';
+                                document.getElementById('coverProgressFill').style.width = '100%';
+                                document.getElementById('coverStatusText').textContent = 'Complete!';
+                                addLog('coverLogContainer', 'AI Cover complete!', 'success');
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                addLog('coverLogContainer', 'Error: ' + error.message, 'error');
+            } finally {
+                coverBtn.disabled = false;
+            }
+        });
+
+        // Load channels on page load
+        loadChannels();
+    </script>
+</body>
+</html>
