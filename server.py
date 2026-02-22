@@ -273,9 +273,14 @@ def run_ytdlp(url, channel_dir, to_mp3, progress_queue, mode='channel'):
                 # Upload to GitHub if enabled
                 if GITHUB_ENABLED:
                     repo_path = f'{channel_name}/{beat_name}/{filename}'
+                    progress_queue.put({'status': f'Uploading to GitHub: {filename}...'})
                     public_url = github_storage.upload_to_github(target_path, repo_path)
                     if public_url:
-                        progress_queue.put({'status': f'Uploaded to GitHub: {filename}'})
+                        progress_queue.put({'status': f'✓ Uploaded to GitHub: {filename}'})
+                    else:
+                        progress_queue.put({'error': f'Failed to upload {filename} to GitHub. Check environment variables.'})
+                else:
+                    progress_queue.put({'status': f'Note: GitHub storage not enabled. Files stored locally only.'})
 
                 organized_count += 1
 
@@ -1250,6 +1255,15 @@ if __name__ == '__main__':
         print(f"║  Storage: GitHub ({github_storage.GITHUB_REPO})            ║")
         print(f"║  Files stored in repository: /storage/              ║")
         print(f"║  Files over 100MB will fail!                          ║")
+        # Test GitHub connection
+        try:
+            test_url = github_storage.upload_to_github(__file__, f'__test__.txt')
+            if test_url:
+                github_storage.delete_from_github(f'__test__.txt')
+            else:
+                print(f"║  ⚠️  GitHub upload test failed!                           ║")
+        except Exception as e:
+            print(f"║  ⚠️  GitHub connection error: {str(e)[:50]}             ║")
     else:
         print(f"║  Storage: Local only (files lost on redeploy)        ║")
         print(f"║  Set GITHUB_TOKEN and GITHUB_REPO for cloud storage  ║")
@@ -1258,5 +1272,22 @@ if __name__ == '__main__':
     print(f"║  Press Ctrl+C to stop                                   ║")
     print(f"╚═══════════════════════════════════════════════╝")
     print()
+
+    # Add debug endpoint
+    @app.route('/debug')
+    def debug_info():
+        """Debug endpoint to check configuration"""
+        info = {
+            'github_enabled': GITHUB_ENABLED,
+            'github_repo': github_storage.GITHUB_REPO if GITHUB_ENABLED else None,
+            'github_token_set': bool(github_storage.GITHUB_TOKEN) if GITHUB_ENABLED else False,
+            'env_vars': {
+                'GITHUB_TOKEN': os.environ.get('GITHUB_TOKEN', 'NOT_SET')[:10] + '...' if os.environ.get('GITHUB_TOKEN') else 'NOT_SET',
+                'GITHUB_REPO': os.environ.get('GITHUB_REPO', 'NOT_SET'),
+            },
+            'working_dir': os.getcwd(),
+            'python_version': f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
+        }
+        return jsonify(info)
 
     app.run(host='0.0.0.0', port=PORT, debug=False)

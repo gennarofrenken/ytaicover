@@ -60,9 +60,15 @@ def upload_to_github(file_path, repo_path):
         Public raw URL if successful, None otherwise
     """
     if not USE_GITHUB:
+        print('GitHub storage not enabled')
         return None
 
     try:
+        # Check if file exists
+        if not os.path.exists(file_path):
+            print(f'File not found: {file_path}')
+            return None
+
         # Read and encode file
         with open(file_path, 'rb') as f:
             content = base64.b64encode(f.read()).decode('utf-8')
@@ -70,7 +76,7 @@ def upload_to_github(file_path, repo_path):
         # Check file size (GitHub 100MB limit)
         file_size = os.path.getsize(file_path)
         if file_size > 100 * 1024 * 1024:  # 100MB
-            print(f'File too large for GitHub: {file_size} bytes')
+            print(f'File too large for GitHub: {file_size / 1024 / 1024:.1f}MB')
             return None
 
         # Check if file already exists
@@ -90,17 +96,17 @@ def upload_to_github(file_path, repo_path):
             data['message'] = f'Update {repo_path}'
 
         # Upload file
-        response = requests.put(url, headers=get_headers(), json=data)
+        response = requests.put(url, headers=get_headers(), json=data, timeout=30)
 
         if response.status_code in [200, 201]:
             # Return raw.githubusercontent.com URL
             return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
 
-        print(f'GitHub upload error: {response.text}')
+        print(f'GitHub upload HTTP {response.status_code}: {response.text[:200]}')
         return None
 
     except Exception as e:
-        print(f'GitHub upload error: {e}')
+        print(f'GitHub upload exception: {type(e).__name__}: {str(e)}')
         return None
 
 
