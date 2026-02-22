@@ -911,7 +911,8 @@
 
                 if (storageInfo.github_enabled && storageInfo.github_repo) {
                     // Download from GitHub
-                    const githubUrl = `https://raw.githubusercontent.com/${storageInfo.github_repo}/main/storage/${coverSelectedChannel}/${coverSelectedBeat}/isolated_samples/${stem.name}`;
+                    const branch = storageInfo.github_branch || 'main';
+                    const githubUrl = `https://raw.githubusercontent.com/${storageInfo.github_repo}/${branch}/storage/${coverSelectedChannel}/${coverSelectedBeat}/isolated_samples/${stem.name}`;
                     window.open(githubUrl, '_blank');
                 } else {
                     // Download from local server
@@ -935,8 +936,9 @@
 
                 if (storageInfo.github_enabled && storageInfo.github_repo) {
                     // Download from GitHub
+                    const branch = storageInfo.github_branch || 'main';
                     const filename = `${coverSelectedBeat}.mp3`;
-                    const githubUrl = `https://raw.githubusercontent.com/${storageInfo.github_repo}/main/storage/${coverSelectedChannel}/${coverSelectedBeat}/${filename}`;
+                    const githubUrl = `https://raw.githubusercontent.com/${storageInfo.github_repo}/${branch}/storage/${coverSelectedChannel}/${coverSelectedBeat}/${filename}`;
                     window.open(githubUrl, '_blank');
                 } else {
                     // Download from local server

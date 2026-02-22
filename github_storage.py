@@ -69,15 +69,15 @@ def upload_to_github(file_path, repo_path):
             print(f'File not found: {file_path}')
             return None
 
-        # Read and encode file
-        with open(file_path, 'rb') as f:
-            content = base64.b64encode(f.read()).decode('utf-8')
-
-        # Check file size (GitHub 100MB limit)
+        # Check file size BEFORE reading into memory (GitHub 100MB limit)
         file_size = os.path.getsize(file_path)
         if file_size > 100 * 1024 * 1024:  # 100MB
             print(f'File too large for GitHub: {file_size / 1024 / 1024:.1f}MB')
             return None
+
+        # Read and encode file (only after size check)
+        with open(file_path, 'rb') as f:
+            content = base64.b64encode(f.read()).decode('utf-8')
 
         # Check if file already exists
         full_path = f'{STORAGE_PATH}/{repo_path}'

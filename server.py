@@ -1202,7 +1202,8 @@ def storage_info():
     info = {
         'github_enabled': GITHUB_ENABLED,
         'local_path': DOWNLOADS_DIR,
-        'github_repo': github_storage.GITHUB_REPO if GITHUB_ENABLED else None
+        'github_repo': github_storage.GITHUB_REPO if GITHUB_ENABLED else None,
+        'github_branch': github_storage.GITHUB_BRANCH if GITHUB_ENABLED else None
     }
 
     if GITHUB_ENABLED:
@@ -1357,11 +1358,56 @@ def generate_cover():
 
 
 if __name__ == '__main__':
+    # Validate required environment variables for production
+    errors = []
+    warnings = []
+
+    # Check GitHub configuration
+    if not github_storage.GITHUB_TOKEN:
+        errors.append("GITHUB_TOKEN environment variable not set - files cannot be stored!")
+    if not github_storage.GITHUB_REPO:
+        errors.append("GITHUB_REPO environment variable not set - files cannot be stored!")
+
+    # Check KIE.AI API key
+    if not KIE_API_KEY:
+        warnings.append("KIE_API_KEY not set - AI cover generation will not work!")
+
+    # Check for production environment
+    if os.environ.get('RENDER'):  # Render.com sets this
+        if not os.environ.get('PUBLIC_BASE_URL'):
+            errors.append("PUBLIC_BASE_URL not set - kie.ai callbacks will fail!")
+
+    # Print errors and exit if critical
+    if errors:
+        print("╔═════════════════════════════════════════════════════════╗")
+        print("║  CRITICAL ERRORS - Cannot start server:                  ║")
+        print("╠═════════════════════════════════════════════════════════╣")
+        for error in errors:
+            print(f"║  ❌ {error:<55} ║")
+        print("╚═════════════════════════════════════════════════════════╝")
+        exit(1)
+
+    # Check yt-dlp installation
     try:
         subprocess.run(['yt-dlp', '--version'], capture_output=True, check=True)
     except:
-        print("yt-dlp not found. Install: pip install yt-dlp")
+        errors.append("yt-dlp not found. Install: pip install yt-dlp")
+        print("╔═════════════════════════════════════════════════════════╗")
+        print("║  CRITICAL ERRORS - Cannot start server:                  ║")
+        print("╠═════════════════════════════════════════════════════════╣")
+        for error in errors:
+            print(f"║  ❌ {error:<55} ║")
+        print("╚═════════════════════════════════════════════════════════╝")
         exit(1)
+
+    # Print warnings
+    if warnings:
+        print("╔═════════════════════════════════════════════════════════╗")
+        print("║  WARNINGS:                                               ║")
+        print("╠═════════════════════════════════════════════════════════╣")
+        for warning in warnings:
+            print(f"║  ⚠️  {warning:<53} ║")
+        print("╚═════════════════════════════════════════════════════════╝")
 
     print(f"""
 ╔═════════════════════════════════════════════════════════╗
