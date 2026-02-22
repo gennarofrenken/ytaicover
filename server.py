@@ -825,6 +825,14 @@ def run_kie_cover(channel, beat, selected_stems, genre, progress_queue):
                                     f.write(download_response.content)
 
                                 progress_queue.put({'status': f'Created: {output_filename}'})
+
+                                # Upload to GitHub if enabled
+                                if GITHUB_ENABLED:
+                                    repo_path = f'{channel}/{beat}/ai_covers/{output_filename}'
+                                    github_url = github_storage.upload_to_github(output_path, repo_path)
+                                    if github_url:
+                                        progress_queue.put({'status': f'Uploaded to GitHub: {output_filename}'})
+
                                 progress_queue.put({'complete': True,
                                                   'message': f'AI Cover generated successfully!'})
                                 return
