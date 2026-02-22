@@ -37,3 +37,17 @@ ffmpeg.zip
 
 # Test outputs
 flipped_samples/
+
+# Downloads - stored in GitHub storage instead
+downloads/
+
+# YuE AI models (not needed for production, using kie.ai instead)
+YuEGP/
+YuE_backup/
+
+# Environment variables
+.env
+
+# Backup files
+*.bak
+*.backup

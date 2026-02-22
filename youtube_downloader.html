@@ -613,7 +613,6 @@
                                 document.getElementById('isolateProgressFill').style.width = '100%';
                                 document.getElementById('isolateStatusText').textContent = 'Complete!';
                                 addLog('isolateLogContainer', 'Stem isolation complete!', 'success');
-                                loadSamples(); // Refresh samples
                             }
                         }
                     }
@@ -690,10 +689,10 @@
 
                     // Check if this stem exists
                     const stemType = item.dataset.stem;
-                    const stemExists = stems.some(s => s.type === stemType || (stemType === 'Other' && s.type === 'Melody'));
+                    const stemExists = stems.some(s => s.type === stemType);
                     if (stemExists) {
                         checkbox.disabled = false;
-                        item.title = stems.find(s => (s.type === stemType || (stemType === 'Other' && s.type === 'Melody')))?.name || '';
+                        item.title = stems.find(s => s.type === stemType)?.name || '';
                     } else {
                         item.title = 'Stem not found';
                     }
