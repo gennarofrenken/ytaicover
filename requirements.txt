@@ -3,6 +3,5 @@ Flask-CORS==4.0.0
 yt-dlp>=2024.3.10
 librosa==0.10.1
 numpy==1.24.4
-essentia==2.1b6
 audio-separator==0.17.3
 requests==2.31.0
