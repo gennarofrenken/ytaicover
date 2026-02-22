@@ -521,115 +521,231 @@ def isolate():
 
 @app.route('/downloads')
 def list_downloads():
-    folders = []
-    try:
-        for item in os.listdir(DOWNLOADS_DIR):
-            item_path = os.path.join(DOWNLOADS_DIR, item)
-            if os.path.isdir(item_path):
-                # Count beat folders (each contains an MP3 with same name)
-                # Skip the nested 'downloads' subfolder
-                beat_count = 0
-                has_isolated = False
-                for beat_folder in os.listdir(item_path):
-                    # Skip 'downloads' subfolder - it's a temporary location
-                    if beat_folder == 'downloads':
-                        continue
-                    beat_path = os.path.join(item_path, beat_folder)
-                    if os.path.isdir(beat_path):
-                        mp3_file = os.path.join(beat_path, beat_folder + '.mp3')
-                        if os.path.exists(mp3_file):
-                            beat_count += 1
-                            # Check if isolated_samples exists
-                            iso_dir = os.path.join(beat_path, 'isolated_samples')
-                            if os.path.exists(iso_dir) and os.listdir(iso_dir):
-                                has_isolated = True
-                folders.append({'name': item, 'count': beat_count, 'hasIsolated': has_isolated})
-    except Exception:
-        pass
+    """List all channels with beat counts - reads from GitHub when enabled"""
+    folders = {}
 
-    return jsonify(folders)
+    try:
+        if GITHUB_ENABLED:
+            # Read from GitHub storage
+            all_files = github_storage.list_github_files('')
+
+            for file_info in all_files:
+                # Path format: channel/beat/file.mp3
+                parts = file_info['path'].split('/')
+                if len(parts) >= 2:
+                    channel = parts[0]
+                    beat = parts[1] if len(parts) > 1 else None
+
+                    if channel not in folders:
+                        folders[channel] = {'name': channel, 'count': 0, 'hasIsolated': False}
+
+                    # Count unique beats (each beat has an MP3 with same name)
+                    if beat and beat not in folders[channel]:
+                        folders[channel][beat] = True  # Track unique beats
+                        folders[channel]['count'] += 1
+
+                    # Check if has isolated samples
+                    if len(parts) > 2 and 'isolated_samples' in file_info['path']:
+                        folders[channel]['hasIsolated'] = True
+
+            # Clean up the tracking data
+            result = []
+            for channel, data in folders.items():
+                # Remove beat tracking keys
+                result.append({
+                    'name': data['name'],
+                    'count': data['count'],
+                    'hasIsolated': data['hasIsolated']
+                })
+            return jsonify(result)
+
+        else:
+            # Local filesystem fallback
+            for item in os.listdir(DOWNLOADS_DIR):
+                item_path = os.path.join(DOWNLOADS_DIR, item)
+                if os.path.isdir(item_path):
+                    beat_count = 0
+                    has_isolated = False
+                    for beat_folder in os.listdir(item_path):
+                        if beat_folder == 'downloads':
+                            continue
+                        beat_path = os.path.join(item_path, beat_folder)
+                        if os.path.isdir(beat_path):
+                            mp3_file = os.path.join(beat_path, beat_folder + '.mp3')
+                            if os.path.exists(mp3_file):
+                                beat_count += 1
+                                iso_dir = os.path.join(beat_path, 'isolated_samples')
+                                if os.path.exists(iso_dir) and os.listdir(iso_dir):
+                                    has_isolated = True
+                    folders[item] = {'name': item, 'count': beat_count, 'hasIsolated': has_isolated}
+
+            return jsonify(list(folders.values()))
+
+    except Exception as e:
+        print(f"Error listing downloads: {e}")
+        return jsonify([])
 
 
 @app.route('/beats/<channel>')
 def list_beats(channel):
-    beats = []
-    try:
-        channel_dir = os.path.join(DOWNLOADS_DIR, channel)
-        if os.path.exists(channel_dir):
-            for item in os.listdir(channel_dir):
-                # Skip 'downloads' subfolder - it's a temporary location
-                if item == 'downloads':
-                    continue
-                beat_folder = os.path.join(channel_dir, item)
-                if os.path.isdir(beat_folder):
-                    # Check for MP3 file with same name as folder
-                    mp3_path = os.path.join(beat_folder, item + '.mp3')
-                    if os.path.exists(mp3_path):
-                        # Check if isolated_samples exists for this beat
-                        iso_dir = os.path.join(beat_folder, 'isolated_samples')
-                        has_isolated = os.path.exists(iso_dir) and os.listdir(iso_dir)
-                        beats.append({'name': item, 'hasIsolated': has_isolated})
-    except Exception:
-        pass
+    """List beats for a channel - reads from GitHub when enabled"""
+    beats = {}
 
-    return jsonify(beats)
+    try:
+        if GITHUB_ENABLED:
+            # Read from GitHub storage
+            all_files = github_storage.list_github_files(channel)
+
+            for file_info in all_files:
+                # Path format: channel/beat/file.mp3 or channel/beat/isolated_samples/file.mp3
+                parts = file_info['path'].split('/')
+                if len(parts) >= 2:
+                    beat = parts[1]
+
+                    if beat and beat not in beats:
+                        beats[beat] = {'name': beat, 'hasIsolated': False}
+
+                    # Check if has isolated samples
+                    if len(parts) > 2 and 'isolated_samples' in file_info['path']:
+                        beats[beat]['hasIsolated'] = True
+
+            return jsonify(list(beats.values()))
+
+        else:
+            # Local filesystem fallback
+            channel_dir = os.path.join(DOWNLOADS_DIR, channel)
+            if os.path.exists(channel_dir):
+                for item in os.listdir(channel_dir):
+                    if item == 'downloads':
+                        continue
+                    beat_folder = os.path.join(channel_dir, item)
+                    if os.path.isdir(beat_folder):
+                        mp3_path = os.path.join(beat_folder, item + '.mp3')
+                        if os.path.exists(mp3_path):
+                            iso_dir = os.path.join(beat_folder, 'isolated_samples')
+                            has_isolated = os.path.exists(iso_dir) and os.listdir(iso_dir)
+                            beats[item] = {'name': item, 'hasIsolated': has_isolated}
+
+            return jsonify(list(beats.values()))
+
+    except Exception as e:
+        print(f"Error listing beats for {channel}: {e}")
+        return jsonify([])
 
 
 @app.route('/samples')
 def list_samples():
-    samples = []
-    try:
-        for item in os.listdir(DOWNLOADS_DIR):
-            item_path = os.path.join(DOWNLOADS_DIR, item)
-            if os.path.isdir(item_path):
-                # Look for isolated_samples in each beat folder
-                stems = []
-                for beat_folder in os.listdir(item_path):
-                    # Skip 'downloads' subfolder - it's a temporary location
-                    if beat_folder == 'downloads':
-                        continue
-                    beat_path = os.path.join(item_path, beat_folder)
-                    if os.path.isdir(beat_path):
-                        iso_dir = os.path.join(beat_path, 'isolated_samples')
-                        if os.path.exists(iso_dir):
-                            for f in os.listdir(iso_dir):
-                                if f.endswith('.mp3'):
-                                    stems.append({'name': f, 'beat': beat_folder})
-                if stems:
-                    samples.append({'name': item, 'stems': stems, 'count': len(stems)})
-    except Exception:
-        pass
+    """List all samples grouped by channel - reads from GitHub when enabled"""
+    samples_by_channel = {}
 
-    return jsonify(samples)
+    try:
+        if GITHUB_ENABLED:
+            # Read from GitHub storage
+            all_files = github_storage.list_github_files('')
+
+            for file_info in all_files:
+                path_parts = file_info['path'].split('/')
+
+                # Only include files in isolated_samples folders
+                if len(path_parts) >= 4 and path_parts[2] == 'isolated_samples' and file_info['name'].endswith('.mp3'):
+                    channel = path_parts[0]
+                    beat = path_parts[1]
+                    filename = file_info['name']
+
+                    if channel not in samples_by_channel:
+                        samples_by_channel[channel] = {'name': channel, 'stems': [], 'count': 0}
+
+                    samples_by_channel[channel]['stems'].append({
+                        'name': filename,
+                        'beat': beat,
+                        'url': file_info['url']
+                    })
+                    samples_by_channel[channel]['count'] += 1
+
+            return jsonify(list(samples_by_channel.values()))
+
+        else:
+            # Local filesystem fallback
+            for item in os.listdir(DOWNLOADS_DIR):
+                item_path = os.path.join(DOWNLOADS_DIR, item)
+                if os.path.isdir(item_path):
+                    stems = []
+                    for beat_folder in os.listdir(item_path):
+                        if beat_folder == 'downloads':
+                            continue
+                        beat_path = os.path.join(item_path, beat_folder)
+                        if os.path.isdir(beat_path):
+                            iso_dir = os.path.join(beat_path, 'isolated_samples')
+                            if os.path.exists(iso_dir):
+                                for f in os.listdir(iso_dir):
+                                    if f.endswith('.mp3'):
+                                        stems.append({'name': f, 'beat': beat_folder})
+                    if stems:
+                        samples_by_channel[item] = {'name': item, 'stems': stems, 'count': len(stems)}
+
+            return jsonify(list(samples_by_channel.values()))
+
+    except Exception as e:
+        print(f"Error listing samples: {e}")
+        return jsonify([])
 
 
 @app.route('/stems/<channel>/<beat>')
 def list_stems(channel, beat):
-    stems = []
+    """List stems for a beat - reads from GitHub when enabled"""
+    stems = {}
+
     try:
-        beat_path = os.path.join(DOWNLOADS_DIR, channel, beat)
-        iso_dir = os.path.join(beat_path, 'isolated_samples')
-        if os.path.exists(iso_dir):
-            for f in os.listdir(iso_dir):
-                if f.endswith('.mp3'):
-                    # Extract stem type from filename (e.g., Vocals_..., Drums_..., etc.)
+        if GITHUB_ENABLED:
+            # Read from GitHub storage
+            all_files = github_storage.list_github_files(f'{channel}/{beat}/isolated_samples')
+
+            for file_info in all_files:
+                filename = file_info['name']
+                if filename.endswith('.mp3'):
+                    # Extract stem type from filename
                     stem_type = 'Unknown'
-                    if f.startswith('Vocals_'): stem_type = 'Vocals'
-                    elif f.startswith('Drums_'): stem_type = 'Drums'
-                    elif f.startswith('Bass_'): stem_type = 'Bass'
-                    elif f.startswith('Other_'): stem_type = 'Other'
-                    stems.append({
-                        'name': f,
+                    if filename.startswith('Vocals_'): stem_type = 'Vocals'
+                    elif filename.startswith('Drums_'): stem_type = 'Drums'
+                    elif filename.startswith('Bass_'): stem_type = 'Bass'
+                    elif filename.startswith('Other_'): stem_type = 'Other'
+
+                    stems[filename] = {
+                        'name': filename,
                         'type': stem_type,
-                        'path': os.path.join(iso_dir, f)
-                    })
-    except Exception:
-        pass
-    return jsonify(stems)
+                        'url': file_info['url'],  # GitHub raw URL
+                        'path': file_info['path']  # GitHub path for reference
+                    }
+
+            return jsonify(list(stems.values()))
+
+        else:
+            # Local filesystem fallback
+            beat_path = os.path.join(DOWNLOADS_DIR, channel, beat)
+            iso_dir = os.path.join(beat_path, 'isolated_samples')
+            if os.path.exists(iso_dir):
+                for f in os.listdir(iso_dir):
+                    if f.endswith('.mp3'):
+                        stem_type = 'Unknown'
+                        if f.startswith('Vocals_'): stem_type = 'Vocals'
+                        elif f.startswith('Drums_'): stem_type = 'Drums'
+                        elif f.startswith('Bass_'): stem_type = 'Bass'
+                        elif f.startswith('Other_'): stem_type = 'Other'
+                        stems[f] = {
+                            'name': f,
+                            'type': stem_type,
+                            'path': os.path.join(iso_dir, f)
+                        }
+
+            return jsonify(list(stems.values()))
+
+    except Exception as e:
+        print(f"Error listing stems for {channel}/{beat}: {e}")
+        return jsonify([])
 
 
-# Public URL for serving audio files externally (set via ngrok or similar)
-PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL', 'http://localhost:8080')
+# Note: PUBLIC_BASE_URL is already defined above (line 49)
+# Keeping this comment for reference - no redeclaration needed
 
 
 def upload_file_to_temp_host(file_path, progress_queue):
@@ -686,10 +802,25 @@ def run_kie_cover(channel, beat, selected_stems, genre, progress_queue):
         # Get stem file paths
         beat_folder = os.path.join(DOWNLOADS_DIR, channel, beat)
         iso_dir = os.path.join(beat_folder, 'isolated_samples')
+        os.makedirs(iso_dir, exist_ok=True)
 
         # Create output directory for AI covers
         output_dir = os.path.join(beat_folder, 'ai_covers')
         os.makedirs(output_dir, exist_ok=True)
+
+        # If GitHub enabled and no stems locally, download from GitHub
+        if GITHUB_ENABLED:
+            local_stems = [f for f in os.listdir(iso_dir) if f.endswith('.mp3')] if os.path.exists(iso_dir) else []
+            if not local_stems:
+                progress_queue.put({'status': 'Downloading stems from GitHub...'})
+                all_files = github_storage.list_github_files(f'{channel}/{beat}/isolated_samples')
+                for file_info in all_files:
+                    if file_info['name'].endswith('.mp3'):
+                        local_path = os.path.join(iso_dir, file_info['name'])
+                        if not os.path.exists(local_path):
+                            progress_queue.put({'status': f'Downloading {file_info["name"]}...'})
+                            github_storage.download_from_github(file_info['path'], local_path)
+                progress_queue.put({'status': 'Stems downloaded from GitHub'})
 
         # Map stem types to filename prefixes
         stem_type_to_prefix = {

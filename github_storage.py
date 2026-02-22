@@ -191,7 +191,7 @@ def delete_from_github(repo_path):
 
 
 def list_github_files(prefix=''):
-    """List files in GitHub with given prefix
+    """List files in GitHub with given prefix (recursively)
 
     Args:
         prefix: Path prefix to filter
@@ -209,7 +209,14 @@ def list_github_files(prefix=''):
 
         if response.status_code == 200:
             files = []
-            for item in response.json():
+            items = response.json()
+
+            # Handle both list of items and single item responses
+            if not isinstance(items, list):
+                items = [items] if items else []
+
+            def process_item(item, current_prefix=''):
+                """Recursively process items to find all files"""
                 if item['type'] == 'file':
                     # Remove STORAGE_PATH prefix from the path
                     relative_path = item['path'][len(STORAGE_PATH)+1:]
@@ -219,6 +226,20 @@ def list_github_files(prefix=''):
                         'size': item['size'],
                         'url': item['download_url']
                     })
+                elif item['type'] == 'dir':
+                    # Recursively fetch files from subdirectory
+                    dir_url = f'{GITHUB_API_BASE}/{GITHUB_REPO}/contents/{item["path"]}'
+                    dir_response = requests.get(dir_url, headers=get_headers(), params={'ref': GITHUB_BRANCH})
+                    if dir_response.status_code == 200:
+                        sub_items = dir_response.json()
+                        if not isinstance(sub_items, list):
+                            sub_items = [sub_items] if sub_items else []
+                        for sub_item in sub_items:
+                            process_item(sub_item, current_prefix + item['name'] + '/')
+
+            for item in items:
+                process_item(item)
+
             return files
 
         return []
