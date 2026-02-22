@@ -37,13 +37,16 @@ app = Flask(__name__)
 CORS(app)
 
 DOWNLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
-PORT = 8080
+PORT = int(os.environ.get('PORT', 8080))
 
 # GitHub Storage Configuration
 GITHUB_ENABLED = github_storage.USE_GITHUB
-KIE_API_KEY = 'ebc48e66ade959b00669f2313753d89d'
+KIE_API_KEY = os.environ.get('KIE_API_KEY', '')
 KIE_API_BASE = 'https://api.kie.ai/api/v1'
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+
+# Public URL for the deployed service
+PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL', f'http://localhost:{PORT}')
 
 
 def sanitize_filename(name):
@@ -766,7 +769,7 @@ def run_kie_cover(channel, beat, selected_stems, genre, progress_queue):
             'customMode': False,  # Simple mode - only prompt required
             'instrumental': instrumental,
             'model': 'V4_5',  # Use V4.5 for better quality
-            'callBackUrl': 'http://localhost:8080/kie-callback'  # Placeholder - we use polling instead
+            'callBackUrl': f'{PUBLIC_BASE_URL}/kie-callback'  # Use public URL
         }
 
         progress_queue.put({'status': 'Sending request to kie.ai Suno API...'})
@@ -1019,7 +1022,7 @@ def run_yue_cover(channel, beat, selected_stems, genre, progress_queue):
         if output_files and process.returncode == 0:
             # Rename output to include genre info
             genre_tag = genre.replace(' ', '_')[:30] if genre else 'cover'
-            timestamp = int(os.time())
+            timestamp = int(time.time())
             for output_file in output_files:
                 old_path = os.path.join(output_dir, output_file)
                 new_name = f'AI_Cover_{genre_tag}_{timestamp}.mp3'
@@ -1289,5 +1292,14 @@ if __name__ == '__main__':
             'python_version': f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
         }
         return jsonify(info)
+
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint for Render uptime monitoring"""
+        return jsonify({
+            'status': 'ok',
+            'timestamp': time.time(),
+            'github_enabled': GITHUB_ENABLED
+        })
 
     app.run(host='0.0.0.0', port=PORT, debug=False)
