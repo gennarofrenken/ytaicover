@@ -189,6 +189,25 @@
         .stem-checkbox-item.selected { border-color: #ff0844; background: rgba(255,8,68,0.1); }
         .stem-checkbox-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: #ff0844; }
         .stem-checkbox-item label { flex: 1; cursor: pointer; color: rgba(255,255,255,0.8); }
+        .download-btn {
+            padding: 4px 10px; margin-left: 8px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px; color: #fff; cursor: pointer;
+            font-size: 14px; transition: all 0.3s;
+        }
+        .download-btn:hover { background: rgba(255,255,255,0.2); }
+        .delete-btn {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            border: none; border-radius: 8px; color: #fff;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .delete-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220,53,69,0.3);
+        }
     </style>
 </head>
 <body>
@@ -321,20 +340,34 @@
                         <div class="stem-checkbox-item" data-stem="Vocals">
                             <input type="checkbox" id="stemVocals" value="Vocals">
                             <label for="stemVocals">Vocals</label>
+                            <button class="download-btn" id="downloadVocals" style="display:none;" onclick="downloadStem('Vocals')">⬇</button>
                         </div>
                         <div class="stem-checkbox-item" data-stem="Drums">
                             <input type="checkbox" id="stemDrums" value="Drums">
                             <label for="stemDrums">Drums</label>
+                            <button class="download-btn" id="downloadDrums" style="display:none;" onclick="downloadStem('Drums')">⬇</button>
                         </div>
                         <div class="stem-checkbox-item" data-stem="Bass">
                             <input type="checkbox" id="stemBass" value="Bass">
                             <label for="stemBass">Bass</label>
+                            <button class="download-btn" id="downloadBass" style="display:none;" onclick="downloadStem('Bass')">⬇</button>
                         </div>
                         <div class="stem-checkbox-item" data-stem="Other">
                             <input type="checkbox" id="stemOther" value="Other">
                             <label for="stemOther">Melody (Other)</label>
+                            <button class="download-btn" id="downloadOther" style="display:none;" onclick="downloadStem('Other')">⬇</button>
                         </div>
                     </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Download Original File</label>
+                    <button id="downloadOriginalBtn" style="display:none;" onclick="downloadOriginal()">⬇ Download Original MP3</button>
+                </div>
+
+                <div class="input-group">
+                    <label>Manage Files</label>
+                    <button id="deleteBeatBtn" class="delete-btn" style="display:none;" onclick="deleteBeat()">🗑 Delete This Beat</button>
                 </div>
 
                 <div class="input-group">
@@ -822,6 +855,148 @@
 
         // Load channels on page load
         loadChannels();
+
+        // Store loaded stems for download
+        let loadedStems = [];
+
+        // Update loadCoverStems to also show download buttons
+        const originalLoadCoverStems = loadCoverStems;
+        loadCoverStems = async function(channel, beat) {
+            await originalLoadCoverStems(channel, beat);
+
+            if (!channel || !beat) {
+                document.getElementById('downloadOriginalBtn').style.display = 'none';
+                document.getElementById('deleteBeatBtn').style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/stems/${channel}/${beat}`);
+                loadedStems = await response.json();
+
+                // Show download buttons for available stems
+                document.querySelectorAll('.download-btn').forEach(btn => {
+                    btn.style.display = 'none';
+                });
+
+                loadedStems.forEach(stem => {
+                    const btn = document.getElementById(`download${stem.type}`);
+                    if (btn) {
+                        btn.style.display = 'inline-block';
+                        btn.title = `Download: ${stem.name}`;
+                    }
+                });
+
+                // Show original download button
+                document.getElementById('downloadOriginalBtn').style.display = 'inline-block';
+
+                // Show delete button
+                document.getElementById('deleteBeatBtn').style.display = 'inline-block';
+            } catch (error) {
+                console.error('Error loading stems:', error);
+            }
+        };
+
+        // Download stem function
+        async function downloadStem(stemType) {
+            const stem = loadedStems.find(s => s.type === stemType);
+            if (!stem) {
+                alert('Stem not found');
+                return;
+            }
+
+            // Check if file exists in GitHub storage
+            try {
+                const storageInfo = await fetch('/storage-info').then(r => r.json());
+
+                if (storageInfo.github_enabled && storageInfo.github_repo) {
+                    // Download from GitHub
+                    const githubUrl = `https://raw.githubusercontent.com/${storageInfo.github_repo}/main/storage/${coverSelectedChannel}/${coverSelectedBeat}/isolated_samples/${stem.name}`;
+                    window.open(githubUrl, '_blank');
+                } else {
+                    // Download from local server
+                    window.open(`/serve-audio/${stem.path}`, '_blank');
+                }
+            } catch (error) {
+                console.error('Error downloading stem:', error);
+                alert('Failed to download stem');
+            }
+        }
+
+        // Download original file
+        async function downloadOriginal() {
+            if (!coverSelectedChannel || !coverSelectedBeat) {
+                alert('Please select a channel and beat first');
+                return;
+            }
+
+            try {
+                const storageInfo = await fetch('/storage-info').then(r => r.json());
+
+                if (storageInfo.github_enabled && storageInfo.github_repo) {
+                    // Download from GitHub
+                    const filename = `${coverSelectedBeat}.mp3`;
+                    const githubUrl = `https://raw.githubusercontent.com/${storageInfo.github_repo}/main/storage/${coverSelectedChannel}/${coverSelectedBeat}/${filename}`;
+                    window.open(githubUrl, '_blank');
+                } else {
+                    // Download from local server
+                    const localPath = `${coverSelectedChannel}/${coverSelectedBeat}/${coverSelectedBeat}.mp3`;
+                    window.open(`/serve-audio/${localPath}`, '_blank');
+                }
+            } catch (error) {
+                console.error('Error downloading file:', error);
+                alert('Failed to download file');
+            }
+        }
+
+        // Delete beat function
+        async function deleteBeat() {
+            if (!coverSelectedChannel || !coverSelectedBeat) {
+                alert('Please select a channel and beat first');
+                return;
+            }
+
+            const confirmed = confirm(`Are you sure you want to delete "${coverSelectedBeat}"?\n\nThis will delete:\n- Original MP3\n- All stems\n- AI covers\n\nThis action cannot be undone!`);
+
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch('/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channel: coverSelectedChannel,
+                        beat: coverSelectedBeat,
+                        type: 'all',
+                        deleteFromGithub: true
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(result.message);
+                    // Reload channels to update the list
+                    loadChannels();
+                    // Reset stem checkboxes
+                    document.querySelectorAll('.stem-checkbox-item').forEach(item => {
+                        item.classList.remove('selected');
+                        const checkbox = item.querySelector('input[type="checkbox"]');
+                        checkbox.checked = false;
+                        checkbox.disabled = true;
+                    });
+                    // Hide download/delete buttons
+                    document.querySelectorAll('.download-btn').forEach(btn => btn.style.display = 'none');
+                    document.getElementById('downloadOriginalBtn').style.display = 'none';
+                    document.getElementById('deleteBeatBtn').style.display = 'none';
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting beat:', error);
+                alert('Failed to delete beat');
+            }
+        }
     </script>
 </body>
 </html>
