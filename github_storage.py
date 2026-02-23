@@ -102,23 +102,15 @@ def upload_to_github(file_path, repo_path):
             # Verify upload was successful by checking the response
             try:
                 resp_data = response.json()
-                if resp_data.get('content'):
-                    # Double-check: verify the file actually exists by calling get_file_sha again
-                    verify_sha = get_file_sha(full_path)
-                    if verify_sha:
-                        # Return raw.githubusercontent.com URL
-                        return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
-                    else:
-                        print(f'GitHub upload verification failed: File not found after upload')
-                        return None
+                if resp_data.get('content') and resp_data['content'].get('sha'):
+                    # Upload was successful - return the URL
+                    # (Skip immediate verification as GitHub may need time to index)
+                    return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
                 else:
                     print(f'GitHub upload failed: No content in response')
                     return None
             except Exception as e:
                 print(f'GitHub upload response parsing error: {e}')
-                # If response parsing fails, check if file exists
-                if get_file_sha(full_path):
-                    return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
                 return None
 
         # Detailed error logging

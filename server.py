@@ -529,32 +529,34 @@ def list_downloads():
             # Read from GitHub storage
             all_files = github_storage.list_github_files('')
 
-            for file_info in all_files:
-                # Path format: channel/beat/file.mp3
+            # Filter to only get actual beat MP3 files (not test files, isolated samples, etc.)
+            beat_files = [f for f in all_files if f['name'].endswith('.mp3')
+                         and 'isolated_samples' not in f['path']
+                         and 'ai_covers' not in f['path']]
+
+            for file_info in beat_files:
+                # Path format: channel/beat/beat.mp3
                 parts = file_info['path'].split('/')
-                if len(parts) >= 2:
+                if len(parts) >= 3:
                     channel = parts[0]
-                    beat = parts[1] if len(parts) > 1 else None
+                    beat = parts[1]  # beat folder name
 
                     if channel not in folders:
-                        folders[channel] = {'name': channel, 'count': 0, 'hasIsolated': False}
+                        folders[channel] = {'name': channel, 'count': 0, 'hasIsolated': False, '_beats': set()}
 
-                    # Count unique beats (each beat has an MP3 with same name)
-                    if beat and beat not in folders[channel]:
-                        folders[channel][beat] = True  # Track unique beats
-                        folders[channel]['count'] += 1
+                    # Count unique beats
+                    folders[channel]['_beats'].add(beat)
 
                     # Check if has isolated samples
-                    if len(parts) > 2 and 'isolated_samples' in file_info['path']:
+                    if 'isolated_samples' in f['path'] for f in all_files:
                         folders[channel]['hasIsolated'] = True
 
-            # Clean up the tracking data
+            # Build result
             result = []
             for channel, data in folders.items():
-                # Remove beat tracking keys
                 result.append({
                     'name': data['name'],
-                    'count': data['count'],
+                    'count': len(data['_beats']),
                     'hasIsolated': data['hasIsolated']
                 })
             return jsonify(result)
