@@ -342,29 +342,67 @@ def run_stem_isolation(channel, progress_queue, beat=None):
             except:
                 pass
 
-        # Scan for MP3s in beat folders (structure: @Channel/Beat Name/Beat Name.mp3)
+        # If GitHub is enabled and local directory doesn't exist or is empty, list files from GitHub first
         mp3_files = []
-        for item in os.listdir(channel_dir):
-            # Skip 'downloads' subfolder - it's a temporary location
-            if item == 'downloads':
-                continue
-            beat_folder = os.path.join(channel_dir, item)
-            if os.path.isdir(beat_folder):
-                # Look for MP3 with same name as folder
-                mp3_path = os.path.join(beat_folder, item + '.mp3')
+        if GITHUB_ENABLED:
+            # Check if we need to download from GitHub
+            local_has_files = os.path.exists(channel_dir) and any(
+                os.path.isdir(os.path.join(channel_dir, item))
+                for item in os.listdir(channel_dir) if item != 'downloads'
+            )
 
-                # If GitHub enabled and file doesn't exist locally, try to download it
-                if GITHUB_ENABLED and not os.path.exists(mp3_path):
-                    repo_path = f'{channel}/{item}/{item}.mp3'
-                    if github_storage.file_exists_in_github(repo_path):
-                        progress_queue.put({'status': f'Downloading {item} from GitHub...'})
-                        if github_storage.download_from_github(repo_path, mp3_path):
-                            progress_queue.put({'status': f'Downloaded: {item}'})
+            if not local_has_files:
+                progress_queue.put({'status': 'No local files found, checking GitHub...'})
+                # List all beat files from GitHub for this channel
+                all_files = github_storage.list_github_files(channel)
 
-                if os.path.exists(mp3_path):
-                    # If specific beat requested, only include that one
-                    if beat is None or item == beat:
-                        mp3_files.append((item, mp3_path))
+                # Group by beat folder
+                beats = {}
+                for file_info in all_files:
+                    parts = file_info['path'].split('/')
+                    if len(parts) >= 3:
+                        beat = parts[1]
+                        filename = parts[2]
+                        # Only get original MP3s (not isolated samples or covers)
+                        if filename.endswith('.mp3') and 'isolated_samples' not in file_info['path'] and 'ai_covers' not in file_info['path']:
+                            if beat not in beats:
+                                beats[beat] = filename
+                            # If specific beat requested, only include that one
+                            if beat is None or beat == beat:
+                                # Download the file
+                                repo_path = f'{channel}/{beat}/{filename}'
+                                local_path = os.path.join(channel_dir, beat, filename)
+                                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+                                progress_queue.put({'status': f'Downloading {beat} from GitHub...'})
+                                if github_storage.download_from_github(repo_path, local_path):
+                                    progress_queue.put({'status': f'Downloaded: {beat}'})
+                                    mp3_files.append((beat, local_path))
+
+        # Also scan local filesystem for any additional files
+        if os.path.exists(channel_dir):
+            for item in os.listdir(channel_dir):
+                # Skip 'downloads' subfolder - it's a temporary location
+                if item == 'downloads':
+                    continue
+                beat_folder = os.path.join(channel_dir, item)
+                if os.path.isdir(beat_folder):
+                    # Look for MP3 with same name as folder
+                    mp3_path = os.path.join(beat_folder, item + '.mp3')
+
+                    # If GitHub enabled and file doesn't exist locally, try to download it
+                    if GITHUB_ENABLED and not os.path.exists(mp3_path):
+                        repo_path = f'{channel}/{item}/{item}.mp3'
+                        if github_storage.file_exists_in_github(repo_path):
+                            progress_queue.put({'status': f'Downloading {item} from GitHub...'})
+                            if github_storage.download_from_github(repo_path, mp3_path):
+                                progress_queue.put({'status': f'Downloaded: {item}'})
+
+                    if os.path.exists(mp3_path):
+                        # If specific beat requested, only include that one (avoid duplicates)
+                        if beat is None or item == beat:
+                            if not any(item == b for b, _ in mp3_files):
+                                mp3_files.append((item, mp3_path))
 
         if not mp3_files:
             progress_queue.put({'error': 'No MP3 files found', 'complete': True})
@@ -443,7 +481,12 @@ def run_stem_isolation(channel, progress_queue, beat=None):
                         # Upload stem to GitHub if enabled
                         if GITHUB_ENABLED:
                             repo_path = f'{channel}/{beat_name}/isolated_samples/{new_name}'
-                            github_storage.upload_to_github(dst, repo_path)
+                            progress_queue.put({'status': f'Uploading {new_name} to GitHub...'})
+                            upload_url = github_storage.upload_to_github(dst, repo_path)
+                            if upload_url:
+                                progress_queue.put({'status': f'✓ Uploaded: {new_name}'})
+                            else:
+                                progress_queue.put({'error': f'Failed to upload {new_name} to GitHub'})
 
                 progress_queue.put({'status': f'Completed: {beat_name}'})
             else:
