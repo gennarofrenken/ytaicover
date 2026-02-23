@@ -26,12 +26,21 @@ import sys
 import re
 import json
 import shutil
-import librosa
-import numpy as np
 import requests
 import time
 import tempfile
 import github_storage
+
+# Heavy imports - lazy load to speed up startup
+librosa = None
+np = None
+
+def get_librosa():
+    global librosa, np
+    if librosa is None:
+        import librosa
+        import numpy as np
+    return librosa, np
 
 app = Flask(__name__)
 CORS(app)
@@ -67,74 +76,65 @@ def get_channel_name(url):
 
 
 def detect_bpm_and_key(audio_file):
-    """Detect BPM and musical key from audio file using professional-grade algorithms"""
+    """Detect BPM and musical key from audio file"""
+    # Try essentia first (more accurate), fallback to librosa
     try:
         import essentia.standard as es
         import essentia
 
-        # Load FULL audio for maximum accuracy (not just a sample)
+        # Load audio for BPM/key detection
         loader = es.MonoLoader(filename=audio_file, sampleRate=22050)
         audio = loader()
 
-        # --- BPM Detection with multiple methods and octave correction ---
-        # Method 1: Rhythm extractor (returns: bpm, beats, bpm_estimates, rubato_start)
+        # BPM Detection
         rhythm_extractor = es.RhythmExtractor()
         bpm1, beats, bpm_values, rubato_start = rhythm_extractor(audio)
 
-        # Method 2: PercivalExtractor (more accurate for electronic music)
         try:
             percival = es.PercivalExtractor()
             bpm2 = percival(audio)
         except:
             bpm2 = bpm1
 
-        # Use the more confident result (Percival if available)
         bpm = float(bpm2 if bpm2 > 60 else bpm1)
 
-        # Octave correction: if BPM > 170, it's likely halved; if < 55, likely doubled
+        # Octave correction
         if bpm > 170:
             bpm = bpm / 2
         elif bpm < 55:
             bpm = bpm * 2
 
-        # Round to 1 decimal place for precision
         bpm = round(bpm, 1)
 
-        # --- Key Detection using Essentia's professional algorithm ---
+        # Key Detection
         key_detector = es.KeyExtractor()
         key, scale, strength = key_detector(audio)
-
-        # Format: "Cmaj", "Amin", etc.
-        # Essentia returns "major"/"minor" instead of "maj"/"min"
         scale_short = "maj" if scale == "major" else "min"
         key_str = f"{key}{scale_short}"
 
         return bpm, key_str
 
     except Exception as e:
-        # Fallback to librosa if Essentia fails
+        # Fallback to librosa
         try:
-            # Load FULL audio for maximum accuracy
+            librosa, np = get_librosa()
             y, sr = librosa.load(audio_file, sr=22050)
 
-            # Improved BPM detection with octave correction
+            # BPM detection
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr, tightness=100)
             bpm = float(tempo[0]) if hasattr(tempo, '__iter__') else float(tempo)
 
-            # Octave correction for librosa
             if bpm > 170:
                 bpm = bpm / 2
             elif bpm < 55:
                 bpm = bpm * 2
 
-            # Round to 1 decimal place for precision
             bpm = round(bpm, 1)
 
-            # Better key detection using tonal centroid features
+            # Key detection using chroma
             chroma_cq = librosa.feature.chroma_cqt(y=y, sr=sr)
             chroma_mean = np.mean(chroma_cq, axis=1)
 
-            # Use both major and minor profiles for better matching
             major_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
             minor_profile = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
@@ -155,7 +155,6 @@ def detect_bpm_and_key(audio_file):
             major_scores = np.array(major_scores)
             minor_scores = np.array(minor_scores)
 
-            # Find best match
             best_major = np.argmax(major_scores)
             best_minor = np.argmax(minor_scores)
 
@@ -169,34 +168,6 @@ def detect_bpm_and_key(audio_file):
         except Exception as e2:
             print(f"BPM/Key detection failed: {e2}")
             return None, None
-
-        # Detect key using chroma features
-        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-        # Sum chroma across time to get overall pitch class distribution
-        chroma_mean = np.mean(chroma, axis=1)
-
-        # Map to major/minor keys
-        key_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-        max_idx = np.argmax(chroma_mean)
-
-        # Determine if major or minor by comparing major/minor scale profiles
-        major_profile = np.array([1,0,1,0,1,1,0,1,0,1,0,1])
-        minor_profile = np.array([1,0,1,1,0,1,0,1,1,0,1,0])
-
-        # Rotate profiles to match detected root
-        major_rotated = np.roll(major_profile, -max_idx)
-        minor_rotated = np.roll(minor_profile, -max_idx)
-
-        major_score = np.dot(chroma_mean, major_rotated)
-        minor_score = np.dot(chroma_mean, minor_rotated)
-
-        mode = 'maj' if major_score > minor_score else 'min'
-        key = f"{key_names[max_idx]}{mode}"
-
-        return bpm, key
-    except Exception as e:
-        print(f"BPM/Key detection error: {e}")
-        return None, None
 
 
 def run_ytdlp(url, channel_dir, to_mp3, progress_queue, mode='channel'):
