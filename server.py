@@ -1391,7 +1391,7 @@ if __name__ == '__main__':
     # Check for production environment
     if os.environ.get('RENDER'):  # Render.com sets this
         if not os.environ.get('PUBLIC_BASE_URL'):
-            errors.append("PUBLIC_BASE_URL not set - kie.ai callbacks will fail!")
+            warnings.append("PUBLIC_BASE_URL not set - AI cover callbacks will fail!")
 
     # Print errors and exit if critical
     if errors:
