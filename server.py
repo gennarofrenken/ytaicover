@@ -561,9 +561,9 @@ def list_downloads():
                     # Count unique beats
                     folders[channel]['_beats'].add(beat)
 
-                    # Check if has isolated samples
-                    if 'isolated_samples' in f['path'] for f in all_files:
-                        folders[channel]['hasIsolated'] = True
+            # Check if has isolated samples for this channel
+            if any('isolated_samples' in f['path'] for f in all_files):
+                folders[channel]['hasIsolated'] = True
 
             # Build result
             result = []
