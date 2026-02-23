@@ -96,13 +96,41 @@ def upload_to_github(file_path, repo_path):
             data['message'] = f'Update {repo_path}'
 
         # Upload file
-        response = requests.put(url, headers=get_headers(), json=data, timeout=30)
+        response = requests.put(url, headers=get_headers(), json=data, timeout=60)
 
         if response.status_code in [200, 201]:
-            # Return raw.githubusercontent.com URL
-            return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
+            # Verify upload was successful by checking the response
+            try:
+                resp_data = response.json()
+                if resp_data.get('content'):
+                    # Double-check: verify the file actually exists by calling get_file_sha again
+                    verify_sha = get_file_sha(full_path)
+                    if verify_sha:
+                        # Return raw.githubusercontent.com URL
+                        return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
+                    else:
+                        print(f'GitHub upload verification failed: File not found after upload')
+                        return None
+                else:
+                    print(f'GitHub upload failed: No content in response')
+                    return None
+            except Exception as e:
+                print(f'GitHub upload response parsing error: {e}')
+                # If response parsing fails, check if file exists
+                if get_file_sha(full_path):
+                    return f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{full_path}'
+                return None
 
-        print(f'GitHub upload HTTP {response.status_code}: {response.text[:200]}')
+        # Detailed error logging
+        print(f'GitHub upload HTTP {response.status_code}: {response.text[:500]}')
+        if response.status_code == 401:
+            print('ERROR: GitHub token is invalid or expired!')
+        elif response.status_code == 403:
+            print('ERROR: GitHub token lacks required permissions (needs repo scope)')
+        elif response.status_code == 404:
+            print(f'ERROR: Repository or path not found: {GITHUB_REPO}/{full_path}')
+        elif response.status_code == 422:
+            print('ERROR: Validation failed - file may already exist or path is invalid')
         return None
 
     except Exception as e:
